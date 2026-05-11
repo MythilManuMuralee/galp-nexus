@@ -1,0 +1,777 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GALP NEXUS v2 — Energy Intelligence Platform</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+html, body, #root { width: 100%; height: 100%; overflow: hidden; }
+body { background: #060A0D; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef } = React;
+
+const FONT_URL = "https://fonts.googleapis.com/css2?family=Syne:wght@400;500;600;700;800&family=JetBrains+Mono:wght@300;400;500;600&display=swap";
+
+const T = {
+  bg:"#060A0D",surface:"#0C1219",surfaceMid:"#101820",surfaceHigh:"#16212C",
+  border:"#1A2836",borderHi:"#243545",amber:"#F59E0B",amberLo:"#2C1C04",
+  amberMid:"#7A480A",teal:"#00C9A0",tealLo:"#002E24",crimson:"#F43F5E",
+  crimsonLo:"#3B0010",sky:"#38BDF8",skyLo:"#061B2E",green:"#34D399",
+  greenLo:"#023020",violet:"#A78BFA",violetLo:"#1A1035",text:"#DDE6EE",
+  textMid:"#637B8C",textLo:"#2E4255",white:"#F0F6FA",
+};
+
+const injectCSS = () => {
+  if (document.getElementById("galp-css")) return;
+  const link = document.createElement("link");
+  link.rel = "stylesheet"; link.href = FONT_URL;
+  document.head.appendChild(link);
+  const s = document.createElement("style");
+  s.id = "galp-css";
+  s.textContent = `
+    ::-webkit-scrollbar{width:4px;height:4px}
+    ::-webkit-scrollbar-track{background:${T.surface}}
+    ::-webkit-scrollbar-thumb{background:${T.border};border-radius:4px}
+    @keyframes pulse-ring{0%{transform:scale(1);opacity:.6}50%{transform:scale(1.6);opacity:0}100%{transform:scale(1);opacity:0}}
+    @keyframes fadeIn{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+    @keyframes blink{0%,100%{opacity:1}50%{opacity:0}}
+    .galp-btn{font-family:'Syne',sans-serif;cursor:pointer;transition:all .18s ease;border:none;outline:none}
+    .galp-btn:active{transform:scale(.97)}
+    .galp-card{background:${T.surface};border:1px solid ${T.border};border-radius:10px;transition:border-color .2s}
+    .galp-card:hover{border-color:${T.borderHi}}
+    .galp-input{background:${T.surfaceHigh};border:1px solid ${T.borderHi};border-radius:7px;color:${T.text};font-family:'Syne',sans-serif;font-size:13px;outline:none;transition:border-color .2s,box-shadow .2s}
+    .galp-input:focus{border-color:${T.amber};box-shadow:0 0 0 3px ${T.amberLo}}
+    .tab-btn{font-family:'Syne',sans-serif;font-size:11px;font-weight:600;text-transform:uppercase;letter-spacing:.6px;cursor:pointer;background:none;border:none;outline:none;padding:6px 14px;border-radius:6px;transition:all .15s}
+    .anim-fadein{animation:fadeIn .3s ease forwards}
+  `;
+  document.head.appendChild(s);
+};
+
+const useSimData = () => {
+  const [tick, setTick] = useState(0);
+  useEffect(() => { const id = setInterval(() => setTick(t => t+1), 1500); return () => clearInterval(id); }, []);
+  const jitter = (base, range) => +(base + (Math.random()-.5)*range*2).toFixed(2);
+  const freq = +(50 + Math.sin(tick*.31)*.11 + Math.sin(tick*.7)*.04).toFixed(3);
+  return {
+    tick, freq, freqAlert: freq<49.82||freq>50.18,
+    totalDispatch: jitter(1172,18), revenue: jitter(147,4), co2Avoided: jitter(82,3),
+    solarOutput: jitter(480,22), windOutput: jitter(210,30), bessCharge: jitter(71,4),
+    h2Output: jitter(160,8), gridStress: jitter(34,5), blackoutRisk: jitter(2.4,.3),
+    omieSpot: jitter(147,8), euaCarbon: jitter(72.4,1.2), ttfGas: jitter(38.1,.8),
+  };
+};
+
+const FreqWave = ({ tick, alert }) => {
+  const points = Array.from({length:80},(_,i)=>{
+    const t=(i+tick*3)*.12;
+    const base=50+Math.sin(t)*.12+Math.sin(t*2.3)*.04+Math.sin(t*.7)*.06;
+    const spike=alert&&i>58&&i<68?(i===63?-.45:-.2):0;
+    return base+spike;
+  });
+  const W=100,H=40,MIN=49.4,MAX=50.6;
+  const ny=v=>H-4-((v-MIN)/(MAX-MIN))*(H-8);
+  const d=points.map((v,i)=>`${i===0?"M":"L"}${(i/79)*W},${ny(v)}`).join(" ");
+  const color=alert?T.crimson:T.teal;
+  return (
+    <svg viewBox={`0 0 ${W} ${H}`} style={{width:"100%",height:40,display:"block"}}>
+      <line x1="0" y1={ny(50)} x2={W} y2={ny(50)} stroke={T.textLo} strokeWidth=".4" strokeDasharray="2 3"/>
+      <defs><linearGradient id="waveGrad" x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stopColor={color} stopOpacity=".15"/>
+        <stop offset="100%" stopColor={color} stopOpacity="0"/>
+      </linearGradient></defs>
+      <path d={`${d} L${W},${H} L0,${H} Z`} fill="url(#waveGrad)"/>
+      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      {alert&&<circle cx={(63/79)*W} cy={ny(points[63]??49.55)} r="3" fill={T.crimson} opacity=".9"/>}
+    </svg>
+  );
+};
+
+const Spark = ({ color, seed=0, up=true }) => {
+  const pts = Array.from({length:12},(_,i)=>{
+    const v=40+Math.sin(i*.8+seed)*15+Math.sin(i*1.5+seed*2)*8;
+    return up?v+i*1.5:90-v-i*1.2;
+  });
+  const mn=Math.min(...pts),mx=Math.max(...pts);
+  const ny=v=>28-((v-mn)/(mx-mn))*24;
+  const d=pts.map((v,i)=>`${i===0?"M":"L"}${(i/11)*72},${ny(v)}`).join(" ");
+  return (
+    <svg width="72" height="28" viewBox="0 0 72 28">
+      <defs><linearGradient id={`sg${seed}`} x1="0" x2="0" y1="0" y2="1">
+        <stop offset="0%" stopColor={color} stopOpacity=".2"/>
+        <stop offset="100%" stopColor={color} stopOpacity="0"/>
+      </linearGradient></defs>
+      <path d={`${d} L72,28 L0,28 Z`} fill={`url(#sg${seed})`}/>
+      <path d={d} stroke={color} strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+      <circle cx={(11/11)*72} cy={ny(pts[11])} r="2.5" fill={color}/>
+    </svg>
+  );
+};
+
+const Ring = ({ pct, color, size=52 }) => {
+  const R=size/2-5, C=2*Math.PI*R;
+  return (
+    <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+      <circle cx={size/2} cy={size/2} r={R} fill="none" stroke={T.border} strokeWidth="4.5"/>
+      <circle cx={size/2} cy={size/2} r={R} fill="none" stroke={color} strokeWidth="4.5"
+        strokeDasharray={`${(pct/100)*C} ${C}`} strokeLinecap="round"
+        transform={`rotate(-90 ${size/2} ${size/2})`}
+        style={{filter:`drop-shadow(0 0 4px ${color}88)`}}/>
+      <text x={size/2} y={size/2+1} textAnchor="middle" dominantBaseline="middle"
+        fill={color} fontSize="10" fontFamily="JetBrains Mono,monospace" fontWeight="600">{pct}%</text>
+    </svg>
+  );
+};
+
+const Dot = ({ status }) => {
+  const c={online:T.teal,warning:T.amber,offline:T.crimson,standby:T.textMid}[status]??T.textMid;
+  return (
+    <span style={{position:"relative",display:"inline-flex",alignItems:"center",justifyContent:"center",width:12,height:12}}>
+      {status==="online"&&<span style={{position:"absolute",width:12,height:12,borderRadius:"50%",background:c,opacity:.3,animation:"pulse-ring 2s infinite"}}/>}
+      <span style={{width:7,height:7,borderRadius:"50%",background:c,display:"block",boxShadow:`0 0 5px ${c}88`}}/>
+    </span>
+  );
+};
+
+const IberiaMap = ({ tick, stressNode }) => {
+  const nodes = [
+    {id:"sines",x:72,y:148,label:"Sines",status:"online"},{id:"lisbon",x:68,y:120,label:"Lisboa",status:"online"},
+    {id:"madrid",x:168,y:100,label:"Madrid",status:stressNode==="madrid"?"warning":"online"},
+    {id:"badajoz",x:118,y:128,label:"Badajoz",status:"warning"},{id:"sevilla",x:120,y:168,label:"Sevilla",status:"online"},
+    {id:"zaragoza",x:228,y:90,label:"Zaragoza",status:"online"},{id:"barcelona",x:285,y:98,label:"BCN",status:"online"},
+    {id:"extrema",x:148,y:140,label:"Extremadura",status:"warning"},{id:"murcia",x:242,y:158,label:"Murcia",status:"online"},
+    {id:"galicia",x:85,y:58,label:"Galicia",status:"online"},{id:"bilbao",x:188,y:58,label:"Bilbao",status:"online"},
+  ];
+  const lines = [
+    {a:"sines",b:"lisbon",load:.4},{a:"lisbon",b:"badajoz",load:.6},{a:"badajoz",b:"extrema",load:.9},
+    {a:"extrema",b:"madrid",load:.75},{a:"madrid",b:"zaragoza",load:.55},{a:"zaragoza",b:"barcelona",load:.48},
+    {a:"madrid",b:"bilbao",load:.4},{a:"bilbao",b:"zaragoza",load:.35},{a:"madrid",b:"sevilla",load:.5},
+    {a:"sevilla",b:"badajoz",load:.44},{a:"sevilla",b:"murcia",load:.38},{a:"murcia",b:"barcelona",load:.42},
+    {a:"lisbon",b:"galicia",load:.3},{a:"galicia",b:"bilbao",load:.28},
+  ];
+  const nMap = Object.fromEntries(nodes.map(n=>[n.id,n]));
+  const lineColor = l => l>.8?T.crimson:l>.65?T.amber:T.teal;
+  return (
+    <svg viewBox="0 0 360 230" style={{width:"100%",display:"block"}}>
+      <defs>
+        <radialGradient id="mapBg" cx="50%" cy="50%">
+          <stop offset="0%" stopColor={T.surfaceHigh}/><stop offset="100%" stopColor={T.surface}/>
+        </radialGradient>
+        <filter id="glow"><feGaussianBlur stdDeviation="2" result="blur"/>
+          <feMerge><feMergeNode in="blur"/><feMergeNode in="SourceGraphic"/></feMerge>
+        </filter>
+      </defs>
+      <rect width="360" height="230" fill="url(#mapBg)"/>
+      <path d="M55,38 L78,28 L115,26 L155,24 L200,22 L245,26 L278,32 L305,46 L322,66 L328,90 L325,115 L318,140 L308,162 L290,180 L265,194 L238,202 L208,208 L178,212 L152,208 L125,198 L100,184 L78,168 L62,150 L50,128 L44,104 L44,80 L50,60 Z" fill={T.border} stroke={T.borderHi} strokeWidth="1.5" opacity=".5"/>
+      <path d="M55,38 L74,32 L78,55 L76,82 L70,112 L66,140 L62,150 L50,128 L44,104 L44,80 L50,60 Z" fill={T.bg} stroke={T.borderHi} strokeWidth="1" opacity=".7"/>
+      <text x="22" y="185" fill={T.textLo} fontSize="7" fontFamily="JetBrains Mono,monospace" opacity=".6">Atlantic</text>
+      <text x="300" y="210" fill={T.textLo} fontSize="7" fontFamily="JetBrains Mono,monospace" opacity=".6">Med.</text>
+      {lines.map((l,idx) => {
+        const a=nMap[l.a],b=nMap[l.b]; if(!a||!b) return null;
+        const c=lineColor(l.load); const animated=tick%3===idx%3;
+        return (<g key={`${l.a}-${l.b}`}>
+          <line x1={a.x} y1={a.y} x2={b.x} y2={b.y} stroke={c} strokeWidth={l.load>.8?2:1.2} opacity={l.load>.7?.8:.45}/>
+          <circle cx={(a.x+b.x)/2} cy={(a.y+b.y)/2} r="2" fill={c} opacity={animated?.9:.2} style={{transition:"opacity .4s"}}/>
+        </g>);
+      })}
+      {nodes.map(n => {
+        const c={online:T.teal,warning:T.amber,offline:T.crimson}[n.status]; const isAlert=n.status!=="online";
+        return (<g key={n.id} style={{cursor:"pointer"}}>
+          {isAlert&&<circle cx={n.x} cy={n.y} r="12" fill={c} opacity={tick%2===0?.18:.06}/>}
+          <circle cx={n.x} cy={n.y} r="6" fill={T.surfaceMid} stroke={c} strokeWidth="2" filter={isAlert?"url(#glow)":undefined}/>
+          <circle cx={n.x} cy={n.y} r="3" fill={c}/>
+          <text x={n.x} y={n.y-10} textAnchor="middle" fill={c} fontSize="7.5" fontFamily="JetBrains Mono,monospace" fontWeight="500">{n.label}</text>
+        </g>);
+      })}
+      <rect x="6" y="6" width="82" height="44" rx="4" fill={T.surface} opacity=".92" stroke={T.border} strokeWidth=".5"/>
+      {[{c:T.crimson,l:"Congested (>80%)"},{c:T.amber,l:"Warning (>65%)"},{c:T.teal,l:"Normal (<65%)"}].map((lg,i)=>(
+        <g key={lg.l}><rect x="12" y={13+i*12} width="6" height="2" rx="1" fill={lg.c}/>
+          <text x="22" y={15+i*12} fill={T.textMid} fontSize="7" fontFamily="JetBrains Mono,monospace">{lg.l}</text>
+        </g>
+      ))}
+    </svg>
+  );
+};
+
+function App() {
+  injectCSS();
+  const sim = useSimData();
+  const [tab, setTab] = useState("overview");
+  const [userMode, setUserMode] = useState("Executive");
+  const [copilotOpen, setCopilotOpen] = useState(false);
+  const [alertDismissed, setAlertDismissed] = useState([]);
+  const [selectedAsset, setSelectedAsset] = useState(null);
+  const [copilotMsgs, setCopilotMsgs] = useState([{role:"assistant",content:"Hello — I'm your GALP Nexus AI Copilot. I have full visibility into your Iberian grid, asset fleet, carbon metrics, and market positions. What would you like to understand or optimize today?"}]);
+  const [copilotInput, setCopilotInput] = useState("");
+  const [copilotLoading, setCopilotLoading] = useState(false);
+  const [dispatchMode, setDispatchMode] = useState("auto");
+  const [manualOverrides, setManualOverrides] = useState({});
+  const [notifications, setNotifications] = useState([]);
+  const [dragOver, setDragOver] = useState(false);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [ingestOpen, setIngestOpen] = useState(false);
+  const [ingestStep, setIngestStep] = useState(0);
+  const copilotBottom = useRef();
+
+  useEffect(() => { copilotBottom.current?.scrollIntoView({behavior:"smooth"}); }, [copilotMsgs]);
+
+  const now = new Date();
+  const timeStr = now.toLocaleTimeString("es-ES",{hour:"2-digit",minute:"2-digit",second:"2-digit"});
+  const dateStr = now.toLocaleDateString("es-ES",{weekday:"short",day:"numeric",month:"short"});
+
+  const notify = (msg, type="info") => {
+    const id = Date.now();
+    setNotifications(n=>[...n,{id,msg,type}]);
+    setTimeout(()=>setNotifications(n=>n.filter(x=>x.id!==id)),4000);
+  };
+
+  const TABS = [{id:"overview",label:"Overview"},{id:"grid",label:"Grid Twin"},{id:"assets",label:"Assets"},{id:"vpp",label:"VPP Dispatch"},{id:"carbon",label:"Carbon"}];
+  const MODES = ["Executive","Operator","Engineer","Trader"];
+
+  const alerts = [
+    {id:1,sev:"critical",time:"09:41",region:"Badajoz",msg:"Transformer T-12 overload — +12% above rated capacity",action:"Reroute"},
+    {id:2,sev:"warning",time:"09:38",region:"Extremadura",msg:"Wind generation -28% — calm front approaching",action:"Activate BESS"},
+    {id:3,sev:"warning",time:"09:31",region:"Madrid",msg:"EV peak demand forecast +40% at 18:00–21:00",action:"Pre-charge"},
+    {id:4,sev:"info",time:"09:20",region:"Sines (PT)",msg:"H₂ backup reserves fully charged (100%)",action:"Monitor"},
+    {id:5,sev:"ok",time:"09:12",region:"Galicia",msg:"Wind park output restored after maintenance",action:"View log"},
+  ].filter(a=>!alertDismissed.includes(a.id));
+
+  const sevStyle = {
+    critical:{color:T.crimson,bg:T.crimsonLo,border:T.crimson+"44"},
+    warning:{color:T.amber,bg:T.amberLo,border:T.amber+"44"},
+    info:{color:T.sky,bg:T.skyLo,border:T.sky+"44"},
+    ok:{color:T.green,bg:T.greenLo,border:T.green+"44"},
+  };
+
+  const assets = [
+    {id:"sines",name:"Sines Refinery",type:"Refinery",status:"online",load:87,output:"1.24 GW",co2:"340 tCO₂/h",icon:"🏭"},
+    {id:"extsol",name:"Extremadura Solar",type:"Solar PV",status:"warning",load:62,output:`${sim.solarOutput} MW`,co2:"0",icon:"☀️"},
+    {id:"galwind",name:"Galicia Wind Park",type:"Wind",status:"online",load:44,output:`${sim.windOutput} MW`,co2:"0",icon:"💨"},
+    {id:"madbess",name:"Madrid BESS Hub",type:"Battery",status:"online",load:sim.bessCharge,output:"320 MWh",co2:"—",icon:"🔋"},
+    {id:"sinesh2",name:"Sines H₂ Plant",type:"Hydrogen",status:"online",load:55,output:`${sim.h2Output} MW`,co2:"12 tCO₂/h",icon:"⚗️"},
+    {id:"evnet",name:"EV Network Spain",type:"EV Grid",status:"online",load:39,output:"92 MW",co2:"—",icon:"⚡"},
+    {id:"t12",name:"Transformer T-12",type:"Grid Infra",status:"warning",load:112,output:"2.1 GW",co2:"—",icon:"🔌"},
+  ];
+  const selAsset = assets.find(a=>a.id===selectedAsset);
+
+  const sendCopilot = async (text) => {
+    if (!text.trim()||copilotLoading) return;
+    const userMsg = {role:"user",content:text};
+    setCopilotMsgs(m=>[...m,userMsg]);
+    setCopilotInput("");
+    setCopilotLoading(true);
+    const systemPrompt = `You are NEXUS, the AI Copilot for GALP's energy intelligence platform. LIVE STATE: Grid Freq ${sim.freq}Hz${sim.freqAlert?" ALERT":""}. VPP ${sim.totalDispatch}MW. Revenue €${sim.revenue}K/h. CO₂ Avoided ${sim.co2Avoided}t/h. Solar ${sim.solarOutput}MW. Wind ${sim.windOutput}MW. BESS ${sim.bessCharge}%. H₂ ${sim.h2Output}MW. OMIE €${sim.omieSpot}/MWh. EUA €${sim.euaCarbon}/t. Blackout Risk ${sim.blackoutRisk}/10. Active alerts: Transformer T-12 overload Badajoz, Wind -28% Extremadura, EV peak +40% Madrid. User: ${userMode}. Be concise, specific, action-oriented, under 250 words.`;
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages",{
+        method:"POST",headers:{"Content-Type":"application/json"},
+        body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:1000,system:systemPrompt,messages:[...copilotMsgs,userMsg].map(m=>({role:m.role,content:m.content}))}),
+      });
+      const data = await res.json();
+      const reply = data.content?.map(c=>c.text||"").join("")||"Unable to get response.";
+      setCopilotMsgs(m=>[...m,{role:"assistant",content:reply}]);
+    } catch(e) {
+      setCopilotMsgs(m=>[...m,{role:"assistant",content:"⚠️ Connection error. Please try again."}]);
+    }
+    setCopilotLoading(false);
+  };
+
+  const dispatchSources = [
+    {id:"solar",label:"Solar (Extremadura)",pct:78,mw:sim.solarOutput,color:T.amber,icon:"☀️"},
+    {id:"wind",label:"Wind (Galicia)",pct:44,mw:sim.windOutput,color:T.sky,icon:"💨"},
+    {id:"bess",label:"BESS (Madrid)",pct:sim.bessCharge,mw:320,color:T.teal,icon:"🔋"},
+    {id:"h2",label:"H₂ Turbine (Sines)",pct:32,mw:sim.h2Output,color:T.violet,icon:"⚗️"},
+    {id:"dr",label:"Demand Response",pct:55,mw:-90,color:T.green,icon:"📉"},
+  ];
+
+  const kpis = [
+    {label:"Grid Resilience",val:"94.7",unit:"%",delta:"+2.1%",up:true,color:T.teal,icon:"⚡",seed:1},
+    {label:"Carbon Intensity",val:"112",unit:"gCO₂/kWh",delta:"−18.3",up:false,color:T.green,icon:"🌿",seed:2},
+    {label:"VPP Revenue",val:"€4.2M",unit:"/mo",delta:"+€340K",up:true,color:T.amber,icon:"💹",seed:3},
+    {label:"Blackout Risk",val:sim.blackoutRisk.toFixed(1),unit:"/10",delta:"−0.8",up:false,color:T.sky,icon:"🛡",seed:4},
+  ];
+
+  const Card = ({children,style,className="galp-card"}) => (
+    <div className={className} style={{padding:"18px 20px",...style}}>{children}</div>
+  );
+  const SectionTitle = ({children,sub,action}) => (
+    <div style={{display:"flex",alignItems:"flex-start",justifyContent:"space-between",marginBottom:16}}>
+      <div>
+        <div style={{fontSize:13,fontWeight:700,color:T.text}}>{children}</div>
+        {sub&&<div style={{fontSize:11,color:T.textMid,marginTop:2}}>{sub}</div>}
+      </div>
+      {action}
+    </div>
+  );
+  const Badge = ({children,color=T.teal}) => (
+    <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",letterSpacing:".6px",color,background:color+"18",border:`1px solid ${color}44`,borderRadius:4,padding:"2px 7px"}}>{children}</span>
+  );
+  const Btn = ({children,onClick,variant="ghost",color=T.amber,small,style:st}) => {
+    const styles={primary:{background:color,color:T.bg,border:"none"},outline:{background:"transparent",color,border:`1px solid ${color}66`},ghost:{background:T.surfaceHigh,color:T.textMid,border:`1px solid ${T.border}`}};
+    return <button className="galp-btn" onClick={onClick} style={{...styles[variant],borderRadius:7,padding:small?"4px 12px":"7px 16px",fontSize:small?11:12,fontWeight:700,...st}}>{children}</button>;
+  };
+
+  return (
+    <div style={{fontFamily:"'Syne',sans-serif",background:T.bg,color:T.text,height:"100vh",fontSize:13,lineHeight:1.5,display:"flex",flexDirection:"column",overflow:"hidden"}}>
+
+      {/* Toasts */}
+      <div style={{position:"fixed",top:60,right:16,zIndex:999,display:"flex",flexDirection:"column",gap:8,pointerEvents:"none"}}>
+        {notifications.map(n=>(
+          <div key={n.id} className="anim-fadein" style={{background:T.surfaceMid,border:`1px solid ${n.type==="success"?T.green:T.amber}66`,borderLeft:`3px solid ${n.type==="success"?T.green:T.amber}`,borderRadius:8,padding:"10px 14px",fontSize:12,color:T.text,boxShadow:"0 8px 32px rgba(0,0,0,.5)",maxWidth:280}}>{n.msg}</div>
+        ))}
+      </div>
+
+      {/* Header */}
+      <header style={{display:"flex",alignItems:"center",justifyContent:"space-between",padding:"0 20px",height:50,background:T.surface,borderBottom:`1px solid ${T.border}`,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center"}}>
+          <div style={{display:"flex",alignItems:"center",gap:8,marginRight:20}}>
+            <div style={{width:30,height:30,borderRadius:7,background:`linear-gradient(135deg,${T.amber},#C45D00)`,display:"flex",alignItems:"center",justifyContent:"center",fontSize:15}}>⚡</div>
+            <div>
+              <div style={{fontSize:14,fontWeight:800,letterSpacing:"-.4px",lineHeight:1}}>GALP <span style={{color:T.amber}}>NEXUS</span></div>
+              <div style={{fontSize:9,color:T.textMid,letterSpacing:".5px",textTransform:"uppercase"}}>Energy Intelligence</div>
+            </div>
+          </div>
+          <div style={{width:1,height:28,background:T.border,marginRight:16}}/>
+          {TABS.map(t=>(
+            <button key={t.id} className="tab-btn" onClick={()=>setTab(t.id)} style={{color:tab===t.id?T.amber:T.textMid,borderBottom:`2px solid ${tab===t.id?T.amber:"transparent"}`,borderRadius:0,padding:"6px 12px"}}>{t.label}</button>
+          ))}
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <div style={{display:"flex",gap:4}}>
+            {MODES.map(m=>(
+              <button key={m} className="galp-btn" onClick={()=>setUserMode(m)} style={{padding:"3px 10px",borderRadius:5,fontSize:11,fontWeight:600,background:userMode===m?T.amberLo:"transparent",color:userMode===m?T.amber:T.textMid,border:`1px solid ${userMode===m?T.amber+"88":T.border}`}}>{m}</button>
+            ))}
+          </div>
+          <div style={{width:1,height:22,background:T.border}}/>
+          <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:T.teal,display:"flex",alignItems:"center",gap:5}}>
+            <span style={{width:6,height:6,borderRadius:"50%",background:T.teal,boxShadow:`0 0 6px ${T.teal}`,display:"block",opacity:sim.tick%2===0?1:.4}}/>
+            {timeStr}
+          </div>
+          <button className="galp-btn" onClick={()=>setTab("overview")} style={{background:alerts.length>0?T.crimsonLo:T.surfaceHigh,border:`1px solid ${alerts.length>0?T.crimson+"66":T.border}`,borderRadius:7,padding:"5px 11px",color:alerts.length>0?T.crimson:T.textMid,fontSize:12,fontWeight:700}}>🔔 {alerts.length}</button>
+          <Btn variant="outline" color={T.amber} onClick={()=>setCopilotOpen(o=>!o)} small style={{background:copilotOpen?T.amberLo:undefined}}>✦ Copilot</Btn>
+          <Btn variant="ghost" onClick={()=>{setIngestOpen(true);setIngestStep(0);}} small>+ Data</Btn>
+        </div>
+      </header>
+
+      {/* Body */}
+      <div style={{display:"flex",flex:1,overflow:"hidden"}}>
+
+        {/* Sidebar */}
+        <aside style={{width:236,borderRight:`1px solid ${T.border}`,background:T.surface,display:"flex",flexDirection:"column",flexShrink:0,overflowY:"auto"}}>
+          <div style={{padding:"14px 14px 4px"}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center",marginBottom:8}}>
+              <span style={{fontSize:10,fontWeight:700,color:T.textLo,textTransform:"uppercase",letterSpacing:".8px"}}>Live Alerts</span>
+              <span style={{fontSize:10,color:T.textMid}}>{alerts.length} active</span>
+            </div>
+            <div style={{display:"flex",flexDirection:"column",gap:6}}>
+              {alerts.map(a=>{
+                const s=sevStyle[a.sev];
+                return (
+                  <div key={a.id} style={{background:s.bg,border:`1px solid ${s.border}`,borderLeft:`3px solid ${s.color}`,borderRadius:7,padding:"8px 10px",display:"flex",flexDirection:"column",gap:3}}>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:9,fontWeight:700,textTransform:"uppercase",color:s.color}}>{a.sev}</span>
+                      <div style={{display:"flex",gap:4,alignItems:"center"}}>
+                        <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:9,color:T.textMid}}>{a.time}</span>
+                        <button className="galp-btn" onClick={()=>setAlertDismissed(d=>[...d,a.id])} style={{background:"none",border:"none",color:T.textLo,fontSize:10,padding:0}}>✕</button>
+                      </div>
+                    </div>
+                    <span style={{fontSize:11,color:T.text,lineHeight:1.4}}>{a.msg}</span>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:9,color:T.textMid}}>{a.region}</span>
+                      <button className="galp-btn" onClick={()=>notify(`${a.action} — executing…`,"success")} style={{background:s.color+"22",border:`1px solid ${s.color}44`,borderRadius:4,padding:"2px 7px",color:s.color,fontSize:10,fontWeight:600}}>{a.action} →</button>
+                    </div>
+                  </div>
+                );
+              })}
+              {alerts.length===0&&<div style={{textAlign:"center",padding:"14px 0",color:T.textMid,fontSize:11}}>✓ All systems nominal</div>}
+            </div>
+          </div>
+          <div style={{height:1,background:T.border,margin:"12px 0"}}/>
+          <div style={{padding:"0 14px 12px",display:"flex",flexDirection:"column",gap:6}}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <span style={{fontSize:10,fontWeight:700,color:T.textLo,textTransform:"uppercase",letterSpacing:".8px"}}>Iberia Grid Freq</span>
+              <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:12,fontWeight:600,color:sim.freqAlert?T.crimson:T.teal}}>{sim.freq} Hz</span>
+            </div>
+            <FreqWave tick={sim.tick} alert={sim.freqAlert}/>
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <span style={{fontSize:8,color:T.textLo,fontFamily:"JetBrains Mono,monospace"}}>49.4</span>
+              <span style={{fontSize:8,color:T.textMid,fontFamily:"JetBrains Mono,monospace"}}>50.0 Hz nominal</span>
+              <span style={{fontSize:8,color:T.textLo,fontFamily:"JetBrains Mono,monospace"}}>50.6</span>
+            </div>
+          </div>
+          <div style={{height:1,background:T.border,margin:"4px 0"}}/>
+          <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:8}}>
+            <span style={{fontSize:10,fontWeight:700,color:T.textLo,textTransform:"uppercase",letterSpacing:".8px"}}>Blackout Risk — Iberia</span>
+            {[{r:"Extremadura",v:Math.round(60+Math.sin(sim.tick*.2)*5),c:T.crimson},{r:"Madrid",v:Math.round(34+Math.sin(sim.tick*.3)*4),c:T.amber},{r:"Cataluña",v:Math.round(21+Math.sin(sim.tick*.15)*3),c:T.sky},{r:"Sines (PT)",v:Math.round(12+Math.sin(sim.tick*.25)*2),c:T.green}].map(r=>(
+              <div key={r.r} style={{display:"flex",flexDirection:"column",gap:3}}>
+                <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:T.textMid}}>{r.r}</span><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:r.c}}>{r.v}%</span></div>
+                <div style={{height:3,background:T.border,borderRadius:2}}><div style={{height:3,borderRadius:2,background:r.c,width:`${r.v}%`,transition:"width 1s ease",boxShadow:`0 0 4px ${r.c}66`}}/></div>
+              </div>
+            ))}
+          </div>
+          <div style={{height:1,background:T.border,margin:"4px 0"}}/>
+          <div style={{padding:"12px 14px",display:"flex",flexDirection:"column",gap:7}}>
+            <span style={{fontSize:10,fontWeight:700,color:T.textLo,textTransform:"uppercase",letterSpacing:".8px"}}>Market Prices</span>
+            {[{label:"OMIE Spot",val:`€${sim.omieSpot}/MWh`,up:sim.omieSpot>147},{label:"EUA Carbon",val:`€${sim.euaCarbon}/t`,up:sim.euaCarbon>72.4},{label:"TTF Gas",val:`€${sim.ttfGas}/MWh`,up:sim.ttfGas>38.1},{label:"Brent",val:"$83.4/bbl",up:false}].map(p=>(
+              <div key={p.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                <span style={{fontSize:11,color:T.textMid}}>{p.label}</span>
+                <div style={{display:"flex",alignItems:"center",gap:4}}>
+                  <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:T.text}}>{p.val}</span>
+                  <span style={{fontSize:9,color:p.up?T.crimson:T.green}}>{p.up?"▲":"▼"}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </aside>
+
+        {/* Main content */}
+        <main style={{flex:1,overflowY:"auto",padding:"18px 20px",display:"flex",flexDirection:"column",gap:16}}>
+
+          {tab==="overview"&&(
+            <div className="anim-fadein" style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:12}}>
+                {kpis.map(k=>(
+                  <Card key={k.label} style={{borderLeft:`3px solid ${k.color}`,position:"relative",overflow:"hidden",padding:"15px 16px"}}>
+                    <div style={{position:"absolute",top:0,right:0,width:70,height:70,background:`radial-gradient(circle at top right,${k.color}14,transparent 70%)`}}/>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start",marginBottom:8}}>
+                      <span style={{fontSize:11,color:T.textMid,fontWeight:600,textTransform:"uppercase",letterSpacing:".4px"}}>{k.label}</span>
+                      <span style={{fontSize:15}}>{k.icon}</span>
+                    </div>
+                    <div style={{display:"flex",alignItems:"baseline",gap:4,marginBottom:8}}>
+                      <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:24,fontWeight:600,color:k.color}}>{k.val}</span>
+                      <span style={{fontSize:11,color:T.textMid}}>{k.unit}</span>
+                    </div>
+                    <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                      <span style={{fontSize:10,color:k.up?T.green:T.teal,fontWeight:600}}>{k.delta}</span>
+                      <Spark color={k.color} seed={k.seed} up={k.up}/>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <Card>
+                  <SectionTitle sub={`Auto-dispatch · ${sim.totalDispatch} MW total`} action={<Badge color={T.teal}>● LIVE</Badge>}>Virtual Power Plant</SectionTitle>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {dispatchSources.map(s=>(
+                      <div key={s.id} style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                          <div style={{display:"flex",gap:6,alignItems:"center"}}><span style={{fontSize:12}}>{s.icon}</span><span style={{fontSize:11,color:T.textMid}}>{s.label}</span></div>
+                          <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:s.color}}>{typeof s.mw==="number"?(s.mw>0?`+${s.mw} MW`:`${s.mw} MW`):s.mw}</span>
+                        </div>
+                        <div style={{height:5,background:T.border,borderRadius:3}}><div style={{height:5,borderRadius:3,background:`linear-gradient(90deg,${s.color}88,${s.color})`,width:`${s.pct}%`,boxShadow:`0 0 6px ${s.color}55`,transition:"width .6s ease"}}/></div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:8,marginTop:12,padding:"12px 14px",background:T.surfaceHigh,borderRadius:8,border:`1px solid ${T.border}`}}>
+                    {[{label:"Total Dispatch",val:`${sim.totalDispatch} MW`,color:T.teal},{label:"Revenue/h",val:`€${sim.revenue}K`,color:T.amber},{label:"CO₂ Avoided",val:`${sim.co2Avoided} t/h`,color:T.green}].map(s=>(
+                      <div key={s.label} style={{display:"flex",flexDirection:"column",gap:2}}>
+                        <span style={{fontSize:9,color:T.textLo,textTransform:"uppercase",letterSpacing:".5px"}}>{s.label}</span>
+                        <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:14,fontWeight:600,color:s.color}}>{s.val}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{display:"flex",gap:8,marginTop:12}}>
+                    <Btn variant={dispatchMode==="auto"?"primary":"ghost"} color={T.teal} small onClick={()=>{setDispatchMode("auto");notify("Auto-dispatch mode","success");}}>Auto</Btn>
+                    <Btn variant={dispatchMode==="manual"?"primary":"ghost"} color={T.amber} small onClick={()=>{setDispatchMode("manual");notify("Manual override activated");}}>Manual Override</Btn>
+                  </div>
+                </Card>
+                <Card style={{padding:0,overflow:"hidden"}}>
+                  <div style={{padding:"14px 16px 8px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                    <div><div style={{fontSize:13,fontWeight:700}}>Iberian Grid Digital Twin</div><div style={{fontSize:11,color:T.textMid}}>Real-time congestion & power flow</div></div>
+                  </div>
+                  <IberiaMap tick={sim.tick} stressNode={sim.gridStress>38?"madrid":null}/>
+                </Card>
+              </div>
+              {userMode==="Executive"&&(
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+                  {[{title:"Carbon Pathway",val:"112 gCO₂/kWh",target:"Target 80 by 2030",pct:65,color:T.green,note:"−28% vs 2021 baseline"},{title:"Renewable Mix",val:"61%",target:"Target 80% by 2028",pct:76,color:T.amber,note:"Solar 38% · Wind 23%"},{title:"ESG Rating",val:"A−",target:"MSCI · Updated Q1 2025",pct:82,color:T.sky,note:"+2 notches year-over-year"}].map(e=>(
+                    <Card key={e.title} style={{borderTop:`2px solid ${e.color}`}}>
+                      <div style={{display:"flex",justifyContent:"space-between",alignItems:"baseline",marginBottom:10}}><span style={{fontSize:12,fontWeight:700}}>{e.title}</span><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:20,fontWeight:700,color:e.color}}>{e.val}</span></div>
+                      <div style={{height:5,background:T.border,borderRadius:3,marginBottom:6}}><div style={{height:5,borderRadius:3,background:e.color,width:`${e.pct}%`,transition:"width 1s",boxShadow:`0 0 5px ${e.color}55`}}/></div>
+                      <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:10,color:T.textMid}}>{e.target}</span><span style={{fontSize:10,color:e.color,fontWeight:600}}>{e.note}</span></div>
+                    </Card>
+                  ))}
+                </div>
+              )}
+              {userMode==="Trader"&&(
+                <Card>
+                  <SectionTitle sub="AI-identified arbitrage windows · Next 24h" action={<Badge color={T.amber}>Auto-bid ready</Badge>}>⚡ Live Arbitrage Opportunities</SectionTitle>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                    {[{label:"BESS Discharge Peak",window:"18:00–21:00 today",margin:"+€94/MWh",vol:"80 MWh",color:T.amber,action:"BID NOW"},{label:"H₂ Ancillary Reserve",window:"Next 4h reserve market",margin:"+€31/MWh",vol:"160 MW",color:T.teal,action:"SUBMIT"},{label:"EV V2G Night Export",window:"Tonight 02:00–05:00",margin:"+€18/MWh",vol:"45 MW",color:T.green,action:"QUEUE"}].map(op=>(
+                      <Card key={op.label} style={{borderTop:`2px solid ${op.color}`,display:"flex",flexDirection:"column",gap:8}}>
+                        <span style={{fontSize:12,fontWeight:700}}>{op.label}</span>
+                        <span style={{fontSize:11,color:T.textMid}}>{op.window}</span>
+                        <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:18,fontWeight:700,color:op.color}}>{op.margin}</span><span style={{fontSize:11,color:T.textMid}}>{op.vol}</span></div>
+                        <Btn variant="primary" color={op.color} onClick={()=>notify(`${op.label} — bid submitted ✓`,"success")}>{op.action}</Btn>
+                      </Card>
+                    ))}
+                  </div>
+                </Card>
+              )}
+              {userMode==="Operator"&&(
+                <Card>
+                  <SectionTitle sub="Real-time asset telemetry">Operational Controls</SectionTitle>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[{label:"Emergency BESS",desc:"Deploy 80 MWh reserve",color:T.crimson,icon:"⚡"},{label:"H₂ Backup",desc:"Ramp turbine to 200 MW",color:T.violet,icon:"⚗️"},{label:"Grid Islanding",desc:"Activate Sines microgrid",color:T.amber,icon:"🏝"},{label:"Load Shed",desc:"Non-critical -90 MW",color:T.sky,icon:"📉"}].map(c=>(
+                      <button key={c.label} className="galp-btn" onClick={()=>notify(`${c.label} — command sent`,"success")} style={{background:c.color+"14",border:`1px solid ${c.color}44`,borderRadius:9,padding:"14px 12px",textAlign:"left",display:"flex",flexDirection:"column",gap:4}}>
+                        <span style={{fontSize:18}}>{c.icon}</span><span style={{fontSize:12,fontWeight:700,color:c.color}}>{c.label}</span><span style={{fontSize:10,color:T.textMid}}>{c.desc}</span>
+                      </button>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {tab==="grid"&&(
+            <div className="anim-fadein" style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Card style={{padding:0,overflow:"hidden"}}>
+                <div style={{padding:"14px 18px",display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+                  <div><div style={{fontSize:14,fontWeight:700}}>Iberian Peninsula — Grid Digital Twin</div><div style={{fontSize:11,color:T.textMid}}>Real-time power flow · Transmission constraints · Outage simulation</div></div>
+                  <div style={{display:"flex",gap:8}}>
+                    <Btn variant="outline" color={T.crimson} small onClick={()=>notify("Cascading failure simulation — running…")}>Simulate Blackout</Btn>
+                    <Btn variant="outline" color={T.amber} small onClick={()=>notify("Heatwave scenario — loading…")}>Heatwave Scenario</Btn>
+                  </div>
+                </div>
+                <IberiaMap tick={sim.tick} stressNode="madrid"/>
+              </Card>
+              <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                {[{label:"Total Generation",val:`${sim.totalDispatch} MW`,color:T.teal},{label:"Grid Frequency",val:`${sim.freq} Hz`,color:sim.freqAlert?T.crimson:T.teal},{label:"Congested Lines",val:"2 / 14",color:T.amber},{label:"Interconnect Flow",val:"+220 MW (FR)",color:T.green}].map(s=>(
+                  <Card key={s.label} style={{padding:"14px 16px"}}>
+                    <div style={{fontSize:10,color:T.textMid,textTransform:"uppercase",letterSpacing:".4px",marginBottom:4}}>{s.label}</div>
+                    <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:18,fontWeight:700,color:s.color}}>{s.val}</div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {tab==="assets"&&(
+            <div className="anim-fadein" style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Card>
+                <SectionTitle sub={`${assets.length} assets monitored · ${assets.filter(a=>a.status==="online").length} online`} action={<Btn variant="outline" color={T.teal} small onClick={()=>notify("Asset registration opened")}>+ Register Asset</Btn>}>Asset Fleet</SectionTitle>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:10}}>
+                  {assets.map(a=>{
+                    const sc={online:T.teal,warning:T.amber,offline:T.crimson}[a.status]; const isSel=selectedAsset===a.id;
+                    return (
+                      <button key={a.id} className="galp-btn" onClick={()=>setSelectedAsset(isSel?null:a.id)} style={{background:isSel?T.surfaceHigh:T.surface,border:`1px solid ${isSel?sc:T.border}`,borderRadius:10,padding:"14px 16px",textAlign:"left",display:"flex",flexDirection:"column",gap:8,transition:"all .2s"}}>
+                        <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+                          <div><div style={{fontSize:13,fontWeight:700,marginBottom:2}}>{a.icon} {a.name}</div><span style={{fontSize:9,color:T.textMid,textTransform:"uppercase"}}>{a.type}</span></div>
+                          <Dot status={a.status}/>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <Ring pct={Math.min(a.load,100)} color={a.load>100?T.crimson:sc} size={52}/>
+                          <div style={{display:"flex",flexDirection:"column",gap:4}}>
+                            <div><span style={{fontSize:10,color:T.textLo}}>Output: </span><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:T.text}}>{a.output}</span></div>
+                            <div><span style={{fontSize:10,color:T.textLo}}>CO₂: </span><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:T.green}}>{a.co2}</span></div>
+                          </div>
+                        </div>
+                        {a.load>100&&<span style={{fontSize:9,fontWeight:700,color:T.crimson,background:T.crimson+"18",border:`1px solid ${T.crimson}44`,borderRadius:4,padding:"2px 7px"}}>⚠ OVERLOAD {a.load}%</span>}
+                      </button>
+                    );
+                  })}
+                </div>
+              </Card>
+              {selAsset&&(
+                <Card className="galp-card anim-fadein" style={{borderTop:`2px solid ${{online:T.teal,warning:T.amber,offline:T.crimson}[selAsset.status]}`}}>
+                  <SectionTitle sub={selAsset.type} action={<div style={{display:"flex",gap:8}}><Btn variant="outline" color={T.sky} small onClick={()=>notify(`Diagnostic for ${selAsset.name}`)}>Run Diagnostic</Btn><Btn variant="outline" color={T.amber} small onClick={()=>notify(`Ticket opened for ${selAsset.name}`)}>Open Ticket</Btn></div>}>{selAsset.icon} {selAsset.name}</SectionTitle>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:10}}>
+                    {[{label:"Utilisation",val:`${selAsset.load}%`,color:selAsset.load>100?T.crimson:T.teal},{label:"Output",val:selAsset.output,color:T.text},{label:"CO₂ Rate",val:selAsset.co2,color:T.green},{label:"Status",val:selAsset.status,color:{online:T.teal,warning:T.amber,offline:T.crimson}[selAsset.status]}].map(m=>(
+                      <div key={m.label} style={{background:T.surfaceHigh,borderRadius:8,padding:"12px 14px"}}>
+                        <div style={{fontSize:10,color:T.textMid,marginBottom:4,textTransform:"uppercase"}}>{m.label}</div>
+                        <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:16,fontWeight:600,color:m.color}}>{m.val}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {tab==="vpp"&&(
+            <div className="anim-fadein" style={{display:"flex",flexDirection:"column",gap:14}}>
+              <Card>
+                <SectionTitle sub="Autonomous dispatch orchestration · AI-optimized">VPP Dispatch Control Center</SectionTitle>
+                <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                  {dispatchSources.map(s=>(
+                    <div key={s.id} style={{background:T.surfaceHigh,borderRadius:9,padding:"14px 16px",display:"flex",alignItems:"center",gap:14}}>
+                      <span style={{fontSize:22,flexShrink:0}}>{s.icon}</span>
+                      <div style={{flex:1,display:"flex",flexDirection:"column",gap:6}}>
+                        <div style={{display:"flex",justifyContent:"space-between"}}>
+                          <span style={{fontSize:12,fontWeight:700}}>{s.label}</span>
+                          <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:13,fontWeight:600,color:s.color}}>{typeof s.mw==="number"?`${s.mw>0?"+":""}${s.mw} MW`:s.mw}</span>
+                        </div>
+                        <div style={{display:"flex",alignItems:"center",gap:10}}>
+                          <div style={{flex:1,height:6,background:T.border,borderRadius:3}}><div style={{height:6,borderRadius:3,background:s.color,width:`${dispatchMode==="manual"?(manualOverrides[s.id]??s.pct):s.pct}%`,transition:"width .6s",boxShadow:`0 0 6px ${s.color}55`}}/></div>
+                          <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:T.textMid,width:36,textAlign:"right"}}>{dispatchMode==="manual"?(manualOverrides[s.id]??s.pct):s.pct}%</span>
+                        </div>
+                        {dispatchMode==="manual"&&<input type="range" min="0" max="100" value={manualOverrides[s.id]??s.pct} onChange={e=>setManualOverrides(o=>({...o,[s.id]:+e.target.value}))} style={{width:"100%",accentColor:s.color}}/>}
+                      </div>
+                      <div style={{display:"flex",gap:6}}>
+                        <Btn variant="outline" color={s.color} small onClick={()=>notify(`${s.label} increased`)}>▲</Btn>
+                        <Btn variant="ghost" small onClick={()=>notify(`${s.label} decreased`)}>▼</Btn>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{display:"flex",gap:8,marginTop:14}}>
+                  <Btn variant={dispatchMode==="auto"?"primary":"ghost"} color={T.teal} small onClick={()=>{setDispatchMode("auto");notify("Auto-dispatch","success");}}>Auto</Btn>
+                  <Btn variant={dispatchMode==="manual"?"primary":"ghost"} color={T.amber} small onClick={()=>{setDispatchMode("manual");notify("Manual override activated");}}>Manual Override</Btn>
+                  {dispatchMode==="manual"&&<Btn variant="outline" color={T.crimson} small onClick={()=>{setManualOverrides({});setDispatchMode("auto");notify("Overrides cleared","success");}}>Reset</Btn>}
+                </div>
+              </Card>
+            </div>
+          )}
+
+          {tab==="carbon"&&(
+            <div className="anim-fadein" style={{display:"flex",flexDirection:"column",gap:14}}>
+              <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:14}}>
+                <Card>
+                  <SectionTitle sub="Scope 1, 2 & 3 · Updated hourly">Carbon Dashboard</SectionTitle>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
+                    {[{label:"Current Intensity",val:"112 gCO₂/kWh",delta:"−18.3 vs prior year",color:T.green},{label:"Monthly CO₂",val:"8,420 tCO₂",delta:"−22% vs budget",color:T.teal},{label:"EUA Cost",val:`€${(sim.euaCarbon*8.42).toFixed(0)}K/mo`,delta:"+€3K vs prev",color:T.amber},{label:"Offset Credits",val:"1,200 tCO₂",delta:"Active REDD+ projects",color:T.sky}].map(m=>(
+                      <div key={m.label} style={{background:T.surfaceHigh,borderRadius:8,padding:"14px"}}>
+                        <div style={{fontSize:10,color:T.textMid,textTransform:"uppercase",letterSpacing:".4px",marginBottom:4}}>{m.label}</div>
+                        <div style={{fontFamily:"JetBrains Mono,monospace",fontSize:15,fontWeight:700,color:m.color,marginBottom:3}}>{m.val}</div>
+                        <div style={{fontSize:10,color:T.textMid}}>{m.delta}</div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+                <Card>
+                  <SectionTitle sub="2024 vs 2030 net-zero pathway">Decarbonization Pathway</SectionTitle>
+                  <div style={{display:"flex",flexDirection:"column",gap:10}}>
+                    {[{label:"Renewable Mix",current:61,target:80,color:T.amber},{label:"Carbon Reduction",current:65,target:100,color:T.green},{label:"H₂ Share in Dispatch",current:14,target:40,color:T.violet},{label:"EV Fleet Electrification",current:38,target:100,color:T.sky}].map(p=>(
+                      <div key={p.label} style={{display:"flex",flexDirection:"column",gap:4}}>
+                        <div style={{display:"flex",justifyContent:"space-between"}}><span style={{fontSize:11,color:T.textMid}}>{p.label}</span><span style={{fontFamily:"JetBrains Mono,monospace",fontSize:11,color:p.color}}>{p.current}% / {p.target}%</span></div>
+                        <div style={{height:6,background:T.border,borderRadius:3}}><div style={{height:6,borderRadius:3,background:p.color,width:`${(p.current/p.target)*100}%`,transition:"width 1s",boxShadow:`0 0 5px ${p.color}55`}}/></div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </div>
+            </div>
+          )}
+        </main>
+
+        {/* Copilot */}
+        {copilotOpen&&(
+          <div style={{width:340,borderLeft:`1px solid ${T.border}`,background:T.surface,display:"flex",flexDirection:"column",flexShrink:0}}>
+            <div style={{padding:"14px 16px",borderBottom:`1px solid ${T.border}`,display:"flex",justifyContent:"space-between",alignItems:"center"}}>
+              <div><div style={{fontSize:13,fontWeight:700}}>✦ NEXUS AI Copilot</div><div style={{fontSize:10,color:T.textMid}}>Powered by Claude · Live grid data</div></div>
+              <button className="galp-btn" onClick={()=>setCopilotOpen(false)} style={{background:"none",border:"none",color:T.textMid,fontSize:16}}>✕</button>
+            </div>
+            <div style={{flex:1,overflowY:"auto",padding:"14px 16px",display:"flex",flexDirection:"column",gap:10}}>
+              {copilotMsgs.map((m,i)=>(
+                <div key={i} style={{display:"flex",flexDirection:"column",alignItems:m.role==="user"?"flex-end":"flex-start"}}>
+                  <div style={{maxWidth:"85%",padding:"10px 13px",borderRadius:m.role==="user"?"10px 10px 2px 10px":"10px 10px 10px 2px",background:m.role==="user"?T.amberLo:T.surfaceHigh,border:`1px solid ${m.role==="user"?T.amber+"44":T.border}`,fontSize:12,color:T.text,lineHeight:1.5,whiteSpace:"pre-wrap"}}>{m.content}</div>
+                </div>
+              ))}
+              {copilotLoading&&(
+                <div style={{display:"flex",gap:6,padding:"10px 13px",background:T.surfaceHigh,borderRadius:"10px 10px 10px 2px",border:`1px solid ${T.border}`,width:"fit-content"}}>
+                  {[0,1,2].map(i=><div key={i} style={{width:6,height:6,borderRadius:"50%",background:T.teal,animation:"blink 1.2s infinite",animationDelay:`${i*.2}s`}}/>)}
+                </div>
+              )}
+              <div ref={copilotBottom}/>
+            </div>
+            <div style={{padding:"12px 16px",borderTop:`1px solid ${T.border}`,display:"flex",flexDirection:"column",gap:8}}>
+              <div style={{display:"flex",flexWrap:"wrap",gap:5}}>
+                {["What's causing the Badajoz overload?","Optimise dispatch for next 4h","Carbon credit opportunity?","EV peak risk tonight?"].map(q=>(
+                  <button key={q} className="galp-btn" onClick={()=>setCopilotInput(q)} style={{background:T.surfaceHigh,border:`1px solid ${T.border}`,borderRadius:5,padding:"3px 8px",fontSize:10,color:T.textMid}}>{q}</button>
+                ))}
+              </div>
+              <div style={{display:"flex",gap:8}}>
+                <input className="galp-input" value={copilotInput} onChange={e=>setCopilotInput(e.target.value)} onKeyDown={e=>e.key==="Enter"&&sendCopilot(copilotInput)} placeholder="Ask NEXUS anything…" style={{flex:1,padding:"8px 11px"}}/>
+                <Btn variant="primary" color={T.amber} onClick={()=>sendCopilot(copilotInput)} style={{flexShrink:0}}>Send</Btn>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Data Ingestion Modal */}
+      {ingestOpen&&(
+        <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,.7)",display:"flex",alignItems:"center",justifyContent:"center",zIndex:500,backdropFilter:"blur(6px)"}} onClick={()=>setIngestOpen(false)}>
+          <div className="galp-card anim-fadein" style={{width:580,padding:"28px 32px",display:"flex",flexDirection:"column",gap:20,boxShadow:"0 32px 100px rgba(0,0,0,.7)",maxHeight:"90vh",overflowY:"auto"}} onClick={e=>e.stopPropagation()}>
+            <div style={{display:"flex",justifyContent:"space-between",alignItems:"flex-start"}}>
+              <div><div style={{fontSize:16,fontWeight:800,marginBottom:3}}>Universal Data Ingestion</div><div style={{fontSize:12,color:T.textMid}}>Connect sensors, upload files, or enter data manually</div></div>
+              <button className="galp-btn" onClick={()=>setIngestOpen(false)} style={{background:"none",border:"none",color:T.textMid,fontSize:18}}>✕</button>
+            </div>
+            <div style={{display:"flex",gap:4}}>
+              {["Source","Configure","AI Clean","Review"].map((s,i)=>(
+                <button key={s} className="galp-btn" onClick={()=>setIngestStep(i)} style={{flex:1,padding:"7px",borderRadius:7,fontSize:11,fontWeight:700,background:ingestStep===i?T.tealLo:T.surfaceHigh,border:`1px solid ${ingestStep===i?T.teal+"88":T.border}`,color:ingestStep===i?T.teal:T.textMid}}>{i+1}. {s}</button>
+              ))}
+            </div>
+            {ingestStep===0&&(
+              <div style={{display:"flex",flexDirection:"column",gap:14}}>
+                <div onDragOver={e=>{e.preventDefault();setDragOver(true);}} onDragLeave={()=>setDragOver(false)} onDrop={e=>{e.preventDefault();setDragOver(false);const files=Array.from(e.dataTransfer.files).map(f=>f.name);setUploadedFiles(u=>[...u,...files]);notify(`${files.length} file(s) uploaded`,"success");}} style={{border:`2px dashed ${dragOver?T.teal:T.borderHi}`,borderRadius:12,padding:"28px 24px",textAlign:"center",background:dragOver?T.tealLo:T.surfaceHigh,transition:"all .2s",display:"flex",flexDirection:"column",gap:8,alignItems:"center",cursor:"pointer"}}>
+                  <span style={{fontSize:36}}>📂</span>
+                  <div style={{fontSize:14,fontWeight:700,color:dragOver?T.teal:T.text}}>{uploadedFiles.length>0?`${uploadedFiles.length} file(s) ready`:"Drop files here"}</div>
+                  <div style={{fontSize:11,color:T.textMid}}>CSV, Excel, PDF, JSON, SCADA exports</div>
+                  <label style={{background:T.teal,color:T.bg,borderRadius:7,padding:"7px 18px",fontSize:12,fontWeight:700,cursor:"pointer",marginTop:4}}>Browse Files<input type="file" multiple style={{display:"none"}} onChange={e=>{const files=Array.from(e.target.files).map(f=>f.name);setUploadedFiles(u=>[...u,...files]);notify(`${files.length} file(s) selected`,"success");}}/></label>
+                </div>
+                <div>
+                  <div style={{fontSize:11,fontWeight:700,color:T.textMid,marginBottom:8,textTransform:"uppercase",letterSpacing:".5px"}}>Live Protocol Connections</div>
+                  <div style={{display:"grid",gridTemplateColumns:"repeat(4,1fr)",gap:7}}>
+                    {["MQTT","OPC-UA","Modbus","REST","SCADA","Kafka","Azure IoT","AWS IoT","WebSocket","SFTP","CSV API","Webhooks"].map(c=>(
+                      <button key={c} className="galp-btn" onClick={()=>{notify(`${c} — auth required`);setIngestStep(1);}} style={{background:T.surface,border:`1px solid ${T.border}`,borderRadius:7,padding:"9px",fontSize:11,fontWeight:600,color:T.textMid}} onMouseEnter={e=>{e.currentTarget.style.borderColor=T.teal;e.currentTarget.style.color=T.teal;e.currentTarget.style.background=T.tealLo;}} onMouseLeave={e=>{e.currentTarget.style.borderColor=T.border;e.currentTarget.style.color=T.textMid;e.currentTarget.style.background=T.surface;}}>{c}</button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            )}
+            {ingestStep===1&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                {[{label:"Asset Mapping",options:["Sines Refinery","Extremadura Solar","Galicia Wind Park","Madrid BESS Hub"]},{label:"Data Frequency",options:["Real-time (push)","1 minute","5 minutes","15 minutes"]},{label:"Time Zone",options:["Europe/Madrid (CET)","Europe/Lisbon (WET)","UTC"]},{label:"Unit Normalization",options:["Auto-detect","SI units (MW, MWh, °C)","Imperial"]}].map(f=>(
+                  <div key={f.label} style={{display:"flex",flexDirection:"column",gap:5}}>
+                    <label style={{fontSize:11,fontWeight:600,color:T.textMid}}>{f.label}</label>
+                    <select className="galp-input" style={{padding:"8px 10px",width:"100%",cursor:"pointer"}}>{f.options.map(o=><option key={o}>{o}</option>)}</select>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ingestStep===2&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div style={{background:T.tealLo,border:`1px solid ${T.teal}44`,borderRadius:9,padding:"14px 16px",display:"flex",gap:10}}>
+                  <span style={{fontSize:20}}>🤖</span>
+                  <div><div style={{fontSize:12,fontWeight:700,color:T.teal,marginBottom:4}}>AI Data Quality Engine Active</div><div style={{fontSize:11,color:T.textMid,lineHeight:1.5}}>Detecting missing values, faulty sensors, unit mismatches, and time-series gaps.</div></div>
+                </div>
+                {[{label:"Missing values interpolated",count:847,color:T.green,icon:"✓"},{label:"Anomalous readings flagged",count:12,color:T.amber,icon:"⚠"},{label:"Unit conversions applied",count:2304,color:T.teal,icon:"⟳"},{label:"Duplicate timestamps removed",count:38,color:T.sky,icon:"✕"}].map(r=>(
+                  <div key={r.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",background:T.surfaceHigh,borderRadius:8,padding:"12px 14px"}}>
+                    <div style={{display:"flex",gap:8,alignItems:"center"}}><span style={{color:r.color,fontSize:14}}>{r.icon}</span><span style={{fontSize:11,color:T.textMid}}>{r.label}</span></div>
+                    <span style={{fontFamily:"JetBrains Mono,monospace",fontSize:14,fontWeight:700,color:r.color}}>{r.count}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+            {ingestStep===3&&(
+              <div style={{display:"flex",flexDirection:"column",gap:12}}>
+                <div style={{background:T.greenLo,border:`1px solid ${T.green}44`,borderRadius:9,padding:"14px 16px",textAlign:"center"}}>
+                  <div style={{fontSize:32,marginBottom:6}}>✅</div>
+                  <div style={{fontSize:14,fontWeight:700,color:T.green}}>Ready to Ingest</div>
+                  <div style={{fontSize:11,color:T.textMid,marginTop:3}}>AI-cleaned · Mapped to asset topology</div>
+                </div>
+                <button className="galp-btn" onClick={()=>{setIngestOpen(false);setUploadedFiles([]);setIngestStep(0);notify("Data ingestion complete ✓","success");}} style={{background:T.teal,color:T.bg,border:"none",borderRadius:7,padding:"10px",fontSize:13,fontWeight:700}}>Begin Ingestion →</button>
+              </div>
+            )}
+            <div style={{display:"flex",justifyContent:"space-between"}}>
+              <button className="galp-btn" onClick={()=>setIngestStep(s=>Math.max(0,s-1))} style={{background:T.surfaceHigh,border:`1px solid ${T.border}`,borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,color:T.textMid,opacity:ingestStep===0?.3:1}}>← Back</button>
+              {ingestStep<3&&<button className="galp-btn" onClick={()=>setIngestStep(s=>Math.min(3,s+1))} style={{background:"transparent",border:`1px solid ${T.teal}66`,borderRadius:7,padding:"4px 12px",fontSize:11,fontWeight:700,color:T.teal}}>Next →</button>}
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
