@@ -34,3 +34,8 @@ In such a system, the GARCH forecast weight could be strictly scaled to 0% durin
 *This pipeline utilizes `yfinance` to fetch live market data with a 5-minute interval. Due to strict API limitations, `yfinance` restricts 5-minute data to the most recent 60-day period. Therefore, the backtesting pipeline employs a rolling `period="59d"` window to prevent the code from breaking as time progresses.*
 
 *Because the data window rolls forward every day, the exact point estimates (e.g., specific Sharpe Ratios or Ann. Returns) will naturally drift over time. However, the underlying quantitative pipeline, statistical framework, and relative performance dynamics between the models remain robust and conceptually valid.*
+
+### Future Integration: Swarm Intelligence (MiroFish)
+While the current quantitative pipeline excels at reading numerical microstructure, it lacks contextual awareness of *why* the market is moving. A cutting-edge future optimization would be layering the **MiroFish** multi-agent swarm intelligence engine on top of this execution layer.
+
+By feeding live financial news into MiroFish, thousands of simulated AI agents with distinct behavioral profiles could forecast how the market crowd will react to qualitative events (like sudden Fed announcements). If the MiroFish swarm predicts an impending panic, it could send a signal to this Hybrid model to preemptively scale down positions *before* the numerical variance even begins to spike, creating an ultimate "Alpha Engine" that combines mathematical precision with qualitative behavioral foresight.
